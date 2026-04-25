@@ -1,0 +1,836 @@
+import React, { useState, useEffect } from 'react';
+import { Settings, Play, Image as ImageIcon, PaintBucket, Palette, Save, Check, Undo } from 'lucide-react';
+
+// --- קבועים והגדרות ---
+
+// אוסף פלטות הצבעים לבחירה
+const PALETTES = [
+  {
+    id: 'pastel',
+    name: 'פסטל רך (מקורי)',
+    colors: [
+      { id: 0, hex: '#ffadad', name: 'אדום פסטל' },
+      { id: 1, hex: '#a0c4ff', name: 'כחול פסטל' },
+      { id: 2, hex: '#caffbf', name: 'ירוק פסטל' },
+      { id: 3, hex: '#fdffb6', name: 'צהוב פסטל' },
+      { id: 4, hex: '#bdb2ff', name: 'סגול פסטל' },
+      { id: 5, hex: '#ffd6a5', name: 'כתום פסטל' },
+      { id: 6, hex: '#ffc6ff', name: 'ורוד פסטל' },
+      { id: 7, hex: '#e6ccb2', name: 'חום פסטל' }
+    ]
+  },
+  {
+    id: 'vibrant',
+    name: 'תוסס וחי',
+    colors: [
+      { id: 0, hex: '#ef4444', name: 'אדום' },
+      { id: 1, hex: '#3b82f6', name: 'כחול' },
+      { id: 2, hex: '#22c55e', name: 'ירוק' },
+      { id: 3, hex: '#eab308', name: 'צהוב' },
+      { id: 4, hex: '#a855f7', name: 'סגול' },
+      { id: 5, hex: '#f97316', name: 'כתום' },
+      { id: 6, hex: '#ec4899', name: 'ורוד' },
+      { id: 7, hex: '#0ea5e9', name: 'תכלת עמוק' }
+    ]
+  },
+  {
+    id: 'ocean',
+    name: 'מעמקי הים',
+    colors: [
+      { id: 0, hex: '#0284c7', name: 'כחול עמוק' },
+      { id: 1, hex: '#38bdf8', name: 'תכלת' },
+      { id: 2, hex: '#0d9488', name: 'טורקיז' },
+      { id: 3, hex: '#2dd4bf', name: 'אקווה' },
+      { id: 4, hex: '#1d4ed8', name: 'כחול רויאל' },
+      { id: 5, hex: '#818cf8', name: 'אינדיגו' },
+      { id: 6, hex: '#34d399', name: 'ירוק ים' },
+      { id: 7, hex: '#bae6fd', name: 'תכלת בהיר' }
+    ]
+  },
+  {
+    id: 'forest',
+    name: 'יער קסום',
+    colors: [
+      { id: 0, hex: '#166534', name: 'ירוק עד' },
+      { id: 1, hex: '#4ade80', name: 'ירוק בהיר' },
+      { id: 2, hex: '#84cc16', name: 'ליים' },
+      { id: 3, hex: '#ea580c', name: 'כתום שלכת' },
+      { id: 4, hex: '#facc15', name: 'צהוב חרדל' },
+      { id: 5, hex: '#78350f', name: 'חום עץ' },
+      { id: 6, hex: '#d97706', name: 'ענבר' },
+      { id: 7, hex: '#14b8a6', name: 'ירוק עדן' }
+    ]
+  },
+  {
+    id: 'sunset',
+    name: 'שקיעה חמה',
+    colors: [
+      { id: 0, hex: '#b91c1c', name: 'בורדו' },
+      { id: 1, hex: '#ef4444', name: 'אדום חם' },
+      { id: 2, hex: '#f97316', name: 'כתום אש' },
+      { id: 3, hex: '#fb923c', name: 'אפרסק' },
+      { id: 4, hex: '#fde047', name: 'צהוב שמש' },
+      { id: 5, hex: '#9333ea', name: 'סגול עמוק' },
+      { id: 6, hex: '#d946ef', name: 'מגנטה' },
+      { id: 7, hex: '#db2777', name: 'ורוד עמוק' }
+    ]
+  }
+];
+
+const TOPICS = [
+  { id: 'addition10', name: 'תרגילים בעשרת הראשונה' },
+  { id: 'multiplication', name: 'לוח הכפל' },
+  { id: 'roots', name: 'שורשים (עברית)' },
+  { id: 'wordFamilies', name: 'משפחות מילים' },
+  { id: 'custom', name: 'נושא פתוח (הזנה ידנית)' }
+];
+
+// מנגנון חכם להתאמת גודל הטקסט כך שלעולם לא יחרוג מהצורה
+const getDynamicFontSize = (text, baseSize) => {
+  const len = String(text).trim().length;
+  let calculated = baseSize;
+  if (len === 3) calculated = baseSize * 0.85;
+  else if (len === 4) calculated = baseSize * 0.70;
+  else if (len >= 5) calculated = baseSize * 0.55;
+  return Math.max(calculated, 11); 
+};
+
+// הגדרות ציורים - מעודכן עם תוספות של שטחים לאיורים וסידור טקסטים קפדני
+const IMAGES = {
+  lion: {
+    id: 'lion', name: 'אריה מלך החיות', viewBox: '0 0 420 420',
+    paths: [
+      { id: 'l10', d: 'M 140 310 a 70 80 0 1 0 140 0 a 70 80 0 1 0 -140 0', cx: 210, cy: 320, fontSize: 20 },
+      { id: 'l2', d: 'M 100 100 a 45 45 0 1 0 90 0 a 45 45 0 1 0 -90 0', cx: 145, cy: 100, fontSize: 16 },
+      { id: 'l3', d: 'M 165 70 a 45 45 0 1 0 90 0 a 45 45 0 1 0 -90 0', cx: 210, cy: 70, fontSize: 16 },
+      { id: 'l4', d: 'M 230 100 a 45 45 0 1 0 90 0 a 45 45 0 1 0 -90 0', cx: 275, cy: 100, fontSize: 16 },
+      { id: 'l5', d: 'M 75 165 a 45 45 0 1 0 90 0 a 45 45 0 1 0 -90 0', cx: 120, cy: 165, fontSize: 16 },
+      { id: 'l6', d: 'M 255 165 a 45 45 0 1 0 90 0 a 45 45 0 1 0 -90 0', cx: 300, cy: 165, fontSize: 16 },
+      { id: 'l7', d: 'M 110 225 a 45 45 0 1 0 90 0 a 45 45 0 1 0 -90 0', cx: 155, cy: 225, fontSize: 16 },
+      { id: 'l8', d: 'M 220 225 a 45 45 0 1 0 90 0 a 45 45 0 1 0 -90 0', cx: 265, cy: 225, fontSize: 16 },
+      { id: 'l1', d: 'M 155 150 a 55 55 0 1 0 110 0 a 55 55 0 1 0 -110 0', cx: 210, cy: 130, fontSize: 18 },
+      { id: 'l11', d: 'M 160 350 H 200 V 420 H 160 Z', cx: 180, cy: 385, fontSize: 14 },
+      { id: 'l12', d: 'M 220 350 H 260 V 420 H 220 Z', cx: 240, cy: 385, fontSize: 14 },
+      { id: 'l13', d: 'M 100 350 H 140 V 420 H 100 Z', cx: 120, cy: 385, fontSize: 14 },
+      { id: 'l14', d: 'M 280 350 H 320 V 420 H 280 Z', cx: 300, cy: 385, fontSize: 14 },
+      { id: 'l15', d: 'M 280 300 Q 360 320 360 230 Q 340 300 280 280 Z', cx: 330, cy: 280, fontSize: 14 },
+      { id: 'l16', d: 'M 345 220 a 25 25 0 1 0 50 0 a 25 25 0 1 0 -50 0', cx: 370, cy: 220, fontSize: 14 }
+    ],
+    decorations: [
+      { id: 'd1', d: 'M 195 150 A 5 5 0 1 0 195 149.9 M 225 150 A 5 5 0 1 0 225 149.9', fill: '#0f172a' },
+      { id: 'd2', d: 'M 200 165 H 220 L 210 180 Z', fill: '#0f172a' },
+      { id: 'd3', d: 'M 210 180 V 190 Q 195 200 185 190 M 210 190 Q 225 200 235 190', stroke: '#0f172a', strokeWidth: '3', fill: 'none' },
+      { id: 'd4', d: 'M 170 170 L 140 165 M 170 180 L 140 180 M 175 190 L 145 195 M 250 170 L 280 165 M 250 180 L 280 180 M 245 190 L 275 195', stroke: '#0f172a', strokeWidth: '2', strokeLinecap: 'round' }
+    ]
+  },
+  castle: {
+    id: 'castle', name: 'טירת אבירים', viewBox: '0 0 420 420',
+    paths: [
+      { id: 'c1', d: 'M 160 270 H 260 V 420 H 160 Z', cx: 210, cy: 320, fontSize: 22 },
+      { id: 'c2', d: 'M 185 420 V 360 A 25 25 0 0 1 235 360 V 420 Z', cx: 210, cy: 390, fontSize: 18 },
+      { id: 'c3', d: 'M 90 180 H 160 V 420 H 90 Z', cx: 125, cy: 340, fontSize: 20 },
+      { id: 'c4', d: 'M 260 180 H 330 V 420 H 260 Z', cx: 295, cy: 340, fontSize: 20 },
+      { id: 'c5', d: 'M 80 180 L 125 90 L 170 180 Z', cx: 125, cy: 155, fontSize: 18 },
+      { id: 'c6', d: 'M 250 180 L 295 90 L 340 180 Z', cx: 295, cy: 155, fontSize: 18 },
+      { id: 'c12', d: 'M 100 220 H 150 V 280 H 100 Z', cx: 125, cy: 250, fontSize: 16 },
+      { id: 'c13', d: 'M 270 220 H 320 V 280 H 270 Z', cx: 295, cy: 250, fontSize: 16 },
+      { id: 'c14', d: 'M 180 290 H 240 V 350 H 180 Z', cx: 210, cy: 320, fontSize: 18 },
+      { id: 'c15', d: 'M 30 100 Q 50 70 80 100 Q 110 100 90 130 H 40 Q 10 130 30 100', cx: 65, cy: 110, fontSize: 18 },
+      { id: 'c16', d: 'M 330 120 Q 360 80 390 120 Q 420 120 400 150 H 340 Q 310 150 330 120', cx: 370, cy: 125, fontSize: 18 },
+      { id: 'c17', d: 'M 20 420 A 50 50 0 1 1 120 420 Z', cx: 70, cy: 390, fontSize: 18 },
+      { id: 'c18', d: 'M 300 420 A 50 50 0 1 1 400 420 Z', cx: 350, cy: 390, fontSize: 18 },
+      { id: 'c19', d: 'M 160 50 A 50 50 0 1 1 260 50 A 50 50 0 1 1 160 50 Z', cx: 210, cy: 50, fontSize: 20 }
+    ],
+    decorations: [
+      { id: 'd_flags1', d: 'M 125 90 V 40 L 175 65 L 125 80 Z', fill: '#fca5a5' },
+      { id: 'd_flags2', d: 'M 295 90 V 40 L 345 65 L 295 80 Z', fill: '#fca5a5' },
+      { id: 'd0', d: 'M 160 270 V 230 H 185 V 270 M 197.5 270 V 230 H 222.5 V 270 M 235 270 V 230 H 260 V 270', fill: '#cbd5e1', stroke: '#334155', strokeWidth: '2' },
+      { id: 'd1', d: 'M 110 300 H 140 M 110 330 H 140 M 110 360 H 140 M 110 390 H 140', stroke: '#94a3b8', strokeWidth: '2' },
+      { id: 'd2', d: 'M 280 300 H 310 M 280 330 H 310 M 280 360 H 310 M 280 390 H 310', stroke: '#94a3b8', strokeWidth: '2' },
+      { id: 'd3', d: 'M 185 360 H 235 M 210 360 V 420', stroke: '#334155', strokeWidth: '3' }
+    ]
+  },
+  kitten: {
+    id: 'kitten', name: 'חתלתול', viewBox: '0 0 420 420',
+    paths: [
+      { id: 'k1', d: 'M 110 160 a 100 80 0 1 0 200 0 a 100 80 0 1 0 -200 0', cx: 210, cy: 160, fontSize: 20 }, 
+      { id: 'k2', d: 'M 120 120 l -40 -90 l 90 45 z', cx: 105, cy: 105, fontSize: 16 }, 
+      { id: 'k3', d: 'M 300 120 l 40 -90 l -90 45 z', cx: 315, cy: 105, fontSize: 16 }, 
+      { id: 'k15', d: 'M 125 110 l -20 -50 l 45 25 z', cx: 120, cy: 85, fontSize: 12 }, 
+      { id: 'k16', d: 'M 295 110 l 20 -50 l -45 25 z', cx: 300, cy: 85, fontSize: 12 }, 
+      { id: 'k17', d: 'M 130 130 a 20 30 0 1 0 40 0 a 20 30 0 1 0 -40 0', cx: 150, cy: 130, fontSize: 14 }, 
+      { id: 'k18', d: 'M 250 130 a 20 30 0 1 0 40 0 a 20 30 0 1 0 -40 0', cx: 270, cy: 130, fontSize: 14 }, 
+      { id: 'k6', d: 'M 165 200 a 45 30 0 1 0 90 0 a 45 30 0 1 0 -90 0', cx: 210, cy: 200, fontSize: 16 },
+      { id: 'k7', d: 'M 130 290 a 80 90 0 1 0 160 0 a 80 90 0 1 0 -160 0', cx: 210, cy: 270, fontSize: 20 },
+      { id: 'k8', d: 'M 150 300 a 60 70 0 1 0 120 0 a 60 70 0 1 0 -120 0', cx: 210, cy: 315, fontSize: 18 },
+      { id: 'k9', d: 'M 280 320 q 80 20 100 -50 q 10 -40 -30 -40 q -30 0 -30 40 q 0 40 -40 50 z', cx: 340, cy: 280, fontSize: 16 },
+      { id: 'k10', d: 'M 145 350 a 30 35 0 1 0 60 0 a 30 35 0 1 0 -60 0', cx: 175, cy: 350, fontSize: 16 },
+      { id: 'k11', d: 'M 215 350 a 30 35 0 1 0 60 0 a 30 35 0 1 0 -60 0', cx: 245, cy: 350, fontSize: 16 },
+      { id: 'k12', d: 'M 90 330 a 40 30 0 1 0 80 0 a 40 30 0 1 0 -80 0', cx: 130, cy: 330, fontSize: 16 },
+      { id: 'k13', d: 'M 250 330 a 40 30 0 1 0 80 0 a 40 30 0 1 0 -80 0', cx: 290, cy: 330, fontSize: 16 },
+      { id: 'k14', d: 'M 150 240 q 60 30 120 0 v 25 q -60 30 -120 0 z', cx: 210, cy: 255, fontSize: 14 }
+    ],
+    decorations: [
+      { id: 'd0_tag', d: 'M 195 280 a 15 15 0 1 0 30 0 a 15 15 0 1 0 -30 0', fill: '#fcd34d' },
+      { id: 'd1', d: 'M 175 160 a 10 15 0 1 0 20 0 a 10 15 0 1 0 -20 0 M 225 160 a 10 15 0 1 0 20 0 a 10 15 0 1 0 -20 0', fill: '#0f172a' },
+      { id: 'd2', d: 'M 205 185 h 10 l -5 8 z', fill: '#f472b6' },
+      { id: 'd3', d: 'M 210 195 q -10 10 -20 0 M 210 195 q 10 10 20 0', stroke: '#0f172a', strokeWidth: '3', fill: 'none', strokeLinecap: 'round' },
+      { id: 'd4', d: 'M 155 180 l -30 -10 M 155 190 l -30 5 M 160 200 l -25 15 M 265 180 l 30 -10 M 265 190 l 30 5 M 260 200 l 25 15', stroke: '#0f172a', strokeWidth: '2.5', strokeLinecap: 'round' }
+    ]
+  },
+  
+  // --- איורים משופרים משמעותית עם יותר שטחים ---
+  fish: {
+    id: 'fish', name: 'דג זהב', viewBox: '0 0 420 420',
+    paths: [
+      { id: 'f1', d: 'M 260 140 Q 340 140 340 210 Q 340 280 260 280 Z', cx: 290, cy: 210, fontSize: 16 }, // פנים
+      { id: 'f2', d: 'M 190 130 L 260 140 L 260 210 L 190 210 Z', cx: 225, cy: 170, fontSize: 16 }, // גוף עליון
+      { id: 'f3', d: 'M 190 210 L 260 210 L 260 280 L 190 290 Z', cx: 225, cy: 250, fontSize: 16 }, // גוף תחתון
+      { id: 'f4', d: 'M 120 150 L 190 130 L 190 290 L 120 270 Z', cx: 155, cy: 210, fontSize: 16 }, // גוף אחורי
+      { id: 'f5', d: 'M 120 150 L 40 80 L 80 210 Z', cx: 80, cy: 150, fontSize: 16 }, // זנב עליון
+      { id: 'f6', d: 'M 120 270 L 40 340 L 80 210 Z', cx: 80, cy: 270, fontSize: 16 }, // זנב תחתון
+      { id: 'f7', d: 'M 190 130 Q 225 60 260 140 Z', textX: 225, textY: 35, pointerLine: 'M 225 45 L 225 90', fontSize: 14 }, // סנפיר עליון
+      { id: 'f8', d: 'M 190 290 Q 225 360 260 280 Z', textX: 225, textY: 385, pointerLine: 'M 225 375 L 225 320', fontSize: 14 }, // סנפיר תחתון
+      // שטחים חדשים שנוספו:
+      { id: 'f9', d: 'M 20 420 Q 50 300 20 200 Q 70 300 60 420 Z', cx: 40, cy: 310, fontSize: 14 }, // אצה שמאל 1
+      { id: 'f10', d: 'M 60 420 Q 90 320 110 250 Q 130 350 90 420 Z', cx: 95, cy: 340, fontSize: 14 }, // אצה שמאל 2
+      { id: 'f11', d: 'M 380 420 Q 360 280 390 150 Q 420 280 410 420 Z', cx: 395, cy: 280, fontSize: 14 }, // אצה ימין
+      { id: 'f12', d: 'M 350 120 A 20 20 0 1 0 390 120 A 20 20 0 1 0 350 120', cx: 370, cy: 120, fontSize: 14 }, // בועה גדולה
+      { id: 'f13', d: 'M 370 60 A 15 15 0 1 0 400 60 A 15 15 0 1 0 370 60', cx: 385, cy: 60, fontSize: 12 }, // בועה קטנה
+      { id: 'f14', d: 'M 140 420 Q 200 380 300 420 Z', cx: 220, cy: 405, fontSize: 14 } // סלע בקרקעית
+    ],
+    decorations: [
+      { id: 'fd1', d: 'M 300 190 a 8 8 0 1 0 16 0 a 8 8 0 1 0 -16 0', fill: '#0f172a' }, // עין
+      { id: 'fd2', d: 'M 305 187 a 3 3 0 1 0 6 0 a 3 3 0 1 0 -6 0', fill: '#ffffff' }, // הברקה בעין
+      { id: 'fd3', d: 'M 320 240 Q 305 250 290 240', stroke: '#0f172a', strokeWidth: '3', fill: 'none', strokeLinecap: 'round' }, // חיוך
+      { id: 'fd4', d: 'M 210 150 Q 230 170 210 190 M 210 230 Q 230 250 210 270 M 150 170 Q 170 190 150 210 M 150 210 Q 170 230 150 250', stroke: '#cbd5e1', strokeWidth: '3', fill: 'none', strokeLinecap: 'round' } // קשקשים
+    ]
+  },
+  snail: {
+    id: 'snail', name: 'שבלול חייכן', viewBox: '0 0 420 420',
+    paths: [
+      { id: 'sn1', d: 'M 210 210 L 210 90 A 120 120 0 0 0 90 210 Z', cx: 150, cy: 150, fontSize: 16 }, // קונכיה 1
+      { id: 'sn2', d: 'M 210 210 L 330 210 A 120 120 0 0 0 210 90 Z', cx: 270, cy: 150, fontSize: 16 }, // קונכיה 2
+      { id: 'sn3', d: 'M 210 210 L 210 330 A 120 120 0 0 0 330 210 Z', cx: 270, cy: 270, fontSize: 16 }, // קונכיה 3
+      { id: 'sn4', d: 'M 210 210 L 90 210 A 120 120 0 0 0 210 330 Z', cx: 150, cy: 270, fontSize: 16 }, // קונכיה 4
+      { id: 'sn5', d: 'M 210 170 A 40 40 0 1 0 210 250 A 40 40 0 1 0 210 170', cx: 210, cy: 210, fontSize: 16 }, // מרכז קונכיה
+      { id: 'sn6', d: 'M 90 320 Q 30 320 40 360 Q 120 370 210 360 L 210 320 Z', cx: 120, cy: 340, fontSize: 14 }, // גוף אחורי
+      { id: 'sn7', d: 'M 210 320 L 210 360 Q 300 370 330 340 Q 360 300 340 240 Q 320 240 310 280 Q 280 320 210 320 Z', cx: 280, cy: 330, fontSize: 14 }, // גוף קדמי
+      { id: 'sn8', d: 'M 320 240 A 20 20 0 1 0 360 240 A 20 20 0 1 0 320 240', textX: 390, textY: 150, pointerLine: 'M 380 160 L 350 220', fontSize: 14 }, // ראש
+      // שטחים חדשים:
+      { id: 'sn9', d: 'M -10 360 Q 100 450 210 380 Q 100 330 -10 360 Z', cx: 100, cy: 385, fontSize: 14 }, // עלה שמאל
+      { id: 'sn10', d: 'M 430 360 Q 320 450 210 380 Q 320 330 430 360 Z', cx: 320, cy: 385, fontSize: 14 }, // עלה ימין
+      { id: 'sn11', d: 'M 40 90 A 30 30 0 0 1 90 60 L 90 90 Z', cx: 65, cy: 75, fontSize: 12 }, // ענן חלק 1
+      { id: 'sn12', d: 'M 90 60 A 40 40 0 0 1 160 90 L 90 90 Z', cx: 125, cy: 75, fontSize: 14 }, // ענן חלק 2
+      { id: 'sn13', d: 'M 340 320 C 340 260 400 260 400 320 Z', cx: 370, cy: 300, fontSize: 14 }, // כיפת פטריה
+      { id: 'sn14', d: 'M 360 320 L 360 360 L 380 360 L 380 320 Z', textX: 405, textY: 370, pointerLine: 'M 395 365 L 375 340', fontSize: 12 } // רגל פטריה
+    ],
+    decorations: [
+      { id: 'snd1', d: 'M 330 225 L 310 180 M 350 225 L 370 180', stroke: '#0f172a', strokeWidth: '3', fill: 'none', strokeLinecap: 'round' }, // מחושים
+      { id: 'snd2', d: 'M 305 175 A 6 6 0 1 0 315 175 A 6 6 0 1 0 305 175 M 365 175 A 6 6 0 1 0 375 175 A 6 6 0 1 0 365 175', fill: '#fcd34d' }, // כדורי מחושים
+      { id: 'snd3', d: 'M 345 235 a 3 3 0 1 0 6 0 a 3 3 0 1 0 -6 0 M 330 235 a 3 3 0 1 0 6 0 a 3 3 0 1 0 -6 0', fill: '#0f172a' }, // עיניים
+      { id: 'snd4', d: 'M 210 210 Q 150 210 150 150 M 210 210 Q 270 210 270 270', stroke: '#0f172a', strokeWidth: '4', fill: 'none', strokeLinecap: 'round', opacity: 0.1 } // ספירלה
+    ]
+  },
+  butterfly: {
+    id: 'butterfly', name: 'פרפר סימטרי', viewBox: '0 0 420 420',
+    paths: [
+      // כנפיים שעוצבו מחדש לחלוטין עם שטחים פנימיים מופרדים
+      { id: 'b1', d: 'M 195 130 C 120 10 10 40 20 180 C 25 240 140 220 195 200 Z', textX: 60, textY: 170, fontSize: 16 }, // רקע כנף עליונה שמאל
+      { id: 'b2', d: 'M 70 80 A 25 25 0 1 0 120 80 A 25 25 0 1 0 70 80', cx: 95, cy: 80, fontSize: 14 }, // כתם כנף עליונה שמאל 1
+      { id: 'b3', d: 'M 120 130 A 20 20 0 1 0 160 130 A 20 20 0 1 0 120 130', cx: 140, cy: 130, fontSize: 14 }, // כתם כנף עליונה שמאל 2
+      
+      { id: 'b4', d: 'M 225 130 C 300 10 410 40 400 180 C 395 240 280 220 225 200 Z', textX: 360, textY: 170, fontSize: 16 }, // רקע כנף עליונה ימין
+      { id: 'b5', d: 'M 300 80 A 25 25 0 1 0 350 80 A 25 25 0 1 0 300 80', cx: 325, cy: 80, fontSize: 14 }, // כתם כנף עליונה ימין 1
+      { id: 'b6', d: 'M 260 130 A 20 20 0 1 0 300 130 A 20 20 0 1 0 260 130', cx: 280, cy: 130, fontSize: 14 }, // כתם כנף עליונה ימין 2
+      
+      { id: 'b7', d: 'M 195 200 C 120 210 10 240 60 370 C 100 420 180 340 195 280 Z', textX: 90, textY: 350, fontSize: 16 }, // רקע כנף תחתונה שמאל
+      { id: 'b8', d: 'M 110 300 A 30 30 0 1 0 170 300 A 30 30 0 1 0 110 300', cx: 140, cy: 300, fontSize: 16 }, // כתם פנימי תחתון שמאל
+      
+      { id: 'b9', d: 'M 225 200 C 300 210 410 240 360 370 C 320 420 240 340 225 280 Z', textX: 330, textY: 350, fontSize: 16 }, // רקע כנף תחתונה ימין
+      { id: 'b10', d: 'M 250 300 A 30 30 0 1 0 310 300 A 30 30 0 1 0 250 300', cx: 280, cy: 300, fontSize: 16 }, // כתם פנימי תחתון ימין
+
+      { id: 'b11', d: 'M 195 100 A 15 100 0 1 0 225 100 A 15 100 0 1 0 195 100', cx: 210, cy: 180, fontSize: 14 }, // גוף הפרפר
+      { id: 'b12', d: 'M 195 70 A 15 15 0 1 0 225 70 A 15 15 0 1 0 195 70', textX: 210, textY: 25, pointerLine: 'M 210 35 L 210 55', fontSize: 12 }, // ראש
+      
+      { id: 'b13', d: 'M 30 270 L 40 250 L 50 270 L 30 270', textX: 35, textY: 220, pointerLine: 'M 38 230 L 40 250', fontSize: 12 }, // ניצוץ שמאל
+      { id: 'b14', d: 'M 380 270 L 390 250 L 400 270 L 380 270', textX: 385, textY: 220, pointerLine: 'M 388 230 L 390 250', fontSize: 12 } // ניצוץ ימין
+    ],
+    decorations: [
+      { id: 'bd1', d: 'M 210 120 Q 180 70 150 80 M 210 120 Q 240 70 270 80', stroke: '#0f172a', strokeWidth: '3', fill: 'none', strokeLinecap: 'round' }, // מחושים
+      { id: 'bd2', d: 'M 145 80 A 5 5 0 1 0 155 80 A 5 5 0 1 0 145 80 M 265 80 A 5 5 0 1 0 275 80 A 5 5 0 1 0 265 80', fill: '#0f172a' }, // קצוות מחושים
+      { id: 'bd3', d: 'M 200 150 L 220 150 M 200 180 L 220 180 M 200 210 L 220 210 M 200 240 L 220 240', stroke: '#0f172a', strokeWidth: '2', opacity: 0.3 } // פסים על הגוף
+    ]
+  },
+  dragon: {
+    id: 'dragon', name: 'דרקון חמוד', viewBox: '0 0 420 420',
+    paths: [
+      { id: 'dr1', d: 'M 180 190 Q 140 270 150 350 L 270 350 Q 280 270 240 190 Z', cx: 165, cy: 270, fontSize: 16 }, // גוף אחורי
+      
+      // בטן מחולקת ל-3 שטחי קשקשים במקום אחד:
+      { id: 'dr2_1', d: 'M 195 200 Q 185 225 180 250 L 235 250 Q 230 225 225 200 Z', cx: 210, cy: 225, textX: 290, textY: 225, pointerLine: 'M 280 225 L 220 225', fontSize: 14 },
+      { id: 'dr2_2', d: 'M 180 250 Q 175 275 175 300 L 240 300 Q 240 275 235 250 Z', cx: 210, cy: 275, textX: 290, textY: 275, pointerLine: 'M 280 275 L 220 275', fontSize: 14 },
+      { id: 'dr2_3', d: 'M 175 300 Q 175 325 175 350 L 245 350 Q 245 325 240 300 Z', cx: 210, cy: 325, fontSize: 14 },
+      
+      { id: 'dr3', d: 'M 140 140 A 70 60 0 1 0 280 140 A 70 60 0 1 0 140 140', cx: 210, cy: 135, fontSize: 18 }, // ראש
+      { id: 'dr4', d: 'M 160 170 A 50 35 0 1 0 260 170 A 50 35 0 1 0 160 170', cx: 210, cy: 180, fontSize: 16 }, // אף חוטם
+      { id: 'dr5', d: 'M 150 320 Q 90 320 100 370 L 160 370 Z', cx: 130, cy: 350, fontSize: 14 }, // רגל שמאל
+      { id: 'dr6', d: 'M 270 320 Q 330 320 320 370 L 260 370 Z', cx: 290, cy: 350, fontSize: 14 }, // רגל ימין
+      { id: 'dr7', d: 'M 270 320 Q 380 370 380 240 Q 360 240 340 300 Q 320 320 270 300 Z', cx: 340, cy: 310, fontSize: 14 }, // זנב
+      { id: 'dr8', d: 'M 180 230 Q 120 250 130 280 Q 160 280 175 250 Z', textX: 70, textY: 220, pointerLine: 'M 80 230 L 140 255', fontSize: 14 }, // יד שמאל
+      { id: 'dr9', d: 'M 240 230 Q 300 250 290 280 Q 260 280 245 250 Z', textX: 350, textY: 220, pointerLine: 'M 340 230 L 280 255', fontSize: 14 }, // יד ימין
+      
+      // כנפיים מחולקות לרשתות (4 שטחים במקום 2):
+      { id: 'dr10_t', d: 'M 170 220 Q 100 120 40 150 Q 80 170 120 190 Z', cx: 100, cy: 170, textX: 60, textY: 100, pointerLine: 'M 70 115 L 100 160', fontSize: 12 }, // כנף שמאל עליונה
+      { id: 'dr10_b', d: 'M 120 190 Q 80 170 40 150 Q 100 180 160 260 Z', cx: 100, cy: 210, textX: 40, textY: 250, pointerLine: 'M 55 240 L 95 210', fontSize: 12 }, // כנף שמאל תחתונה
+      { id: 'dr11_t', d: 'M 250 220 Q 320 120 380 150 Q 340 170 300 190 Z', cx: 320, cy: 170, textX: 360, textY: 100, pointerLine: 'M 350 115 L 320 160', fontSize: 12 }, // כנף ימין עליונה
+      { id: 'dr11_b', d: 'M 300 190 Q 340 170 380 150 Q 320 180 260 260 Z', cx: 320, cy: 210, textX: 380, textY: 250, pointerLine: 'M 365 240 L 325 210', fontSize: 12 }, // כנף ימין תחתונה
+
+      // הוספת להבות אש (שטחים נוספים):
+      { id: 'dr_f1', d: 'M 260 170 Q 300 130 350 140 Q 320 160 380 180 Q 310 190 250 185 Z', cx: 310, cy: 165, fontSize: 14 }, // אש חיצונית
+      { id: 'dr_f2', d: 'M 260 175 Q 290 150 320 160 Q 300 170 340 175 Q 290 180 250 180 Z', textX: 350, textY: 210, pointerLine: 'M 340 200 L 295 175', fontSize: 12 } // ליבת אש פנימית
+    ],
+    decorations: [
+      { id: 'drd1', d: 'M 180 120 A 6 8 0 1 0 192 120 A 6 8 0 1 0 180 120 M 228 120 A 6 8 0 1 0 240 120 A 6 8 0 1 0 228 120', fill: '#0f172a' }, // עיניים
+      { id: 'drd2', d: 'M 185 118 A 2 2 0 1 0 189 118 A 2 2 0 1 0 185 118 M 233 118 A 2 2 0 1 0 237 118 A 2 2 0 1 0 233 118', fill: '#ffffff' }, // הברקה בעין
+      { id: 'drd3', d: 'M 195 165 A 3 5 0 1 0 201 165 A 3 5 0 1 0 195 165 M 219 165 A 3 5 0 1 0 225 165 A 3 5 0 1 0 219 165', fill: '#0f172a' }, // נחיריים
+      { id: 'drd4', d: 'M 200 185 Q 210 195 220 185', stroke: '#0f172a', strokeWidth: '3', fill: 'none', strokeLinecap: 'round' }, // פה
+      { id: 'drd5', d: 'M 155 95 L 140 60 L 175 85 Z M 265 95 L 280 60 L 245 85 Z', fill: '#fcd34d' } // קרניים
+    ]
+  }
+};
+
+
+// --- פונקציות יצירת תוכן למידה ---
+// מקבל כעת את מערך הצבעים הפעיל כדי למפות במדויק את הנושא ה"פתוח"
+const generateContent = (topic, customData, activeColors) => {
+  let contentMap = [];
+
+  switch (topic) {
+    case 'addition10':
+      const sums = [3, 4, 5, 6, 7, 8, 9, 10];
+      contentMap = sums.map(sum => {
+        let qs = [];
+        for (let i = 1; i < sum; i++) qs.push(`${i}+${sum - i}`);
+        if(qs.length === 0) qs.push(`${sum}+0`);
+        return { answer: sum.toString(), questions: qs };
+      });
+      break;
+
+    case 'multiplication':
+      const prods = [12, 16, 20, 24, 30, 36, 40, 48];
+      contentMap = prods.map(prod => {
+        let qs = [];
+        for (let i = 2; i <= 10; i++) {
+          if (prod % i === 0 && prod / i <= 10) qs.push(`${i}×${prod / i}`);
+        }
+        if(qs.length === 0) qs.push(`1×${prod}`);
+        return { answer: prod.toString(), questions: qs };
+      });
+      break;
+
+    case 'roots':
+      contentMap = [
+        { answer: 'כ.ת.ב', questions: ['מכתב', 'כותב', 'כתיבה'] },
+        { answer: 'ש.מ.ר', questions: ['שומר', 'שמירה', 'נשמור'] },
+        { answer: 'י.ש.ב', questions: ['יושב', 'ישיבה', 'מושב'] },
+        { answer: 'ל.מ.ד', questions: ['תלמיד', 'לומדת', 'לומדים'] },
+        { answer: 'ה.ל.כ', questions: ['הולך', 'הליכה', 'נלך'] },
+        { answer: 'א.כ.ל', questions: ['אוכל', 'מאכל', 'אכלנו'] },
+        { answer: 'ש.י.ר', questions: ['שיר', 'משורר', 'שירה'] },
+        { answer: 'ר.ק.ד', questions: ['רוקד', 'ריקוד', 'רקדן'] }
+      ];
+      break;
+
+    case 'wordFamilies':
+      contentMap = [
+        { answer: 'ילד', questions: ['ילדים', 'ילדה', 'ילדות'] },
+        { answer: 'ספר', questions: ['סיפור', 'סופר', 'ספרים'] },
+        { answer: 'גן', questions: ['גנן', 'גננת', 'גינה'] },
+        { answer: 'חבר', questions: ['חברה', 'חברים', 'חברות'] },
+        { answer: 'שחק', questions: ['משחק', 'שחקן', 'משחקים'] },
+        { answer: 'למד', questions: ['תלמיד', 'לומדת', 'לומדים'] },
+        { answer: 'כתב', questions: ['מכתב', 'כותב', 'כתיבה'] },
+        { answer: 'אכל', questions: ['מאכל', 'אוכלת', 'אכלנו'] }
+      ];
+      break;
+
+    case 'custom':
+      contentMap = activeColors.map((color, i) => {
+        const customEntry = customData[i];
+        return {
+          answer: customEntry?.answer || `תשובה ${i+1}`,
+          questions: customEntry?.questions.filter(q => q.trim() !== '') || [`שאלה ${i+1}`]
+        };
+      });
+      contentMap = contentMap.map(c => c.questions.length === 0 ? { ...c, questions: ['?'] } : c);
+      break;
+      
+    default:
+      contentMap = [];
+  }
+
+  return contentMap;
+};
+
+
+// --- הרכיב הראשי ---
+
+export default function App() {
+  const [mode, setMode] = useState('student'); 
+  const [currentTopic, setCurrentTopic] = useState('addition10');
+  const [currentImageId, setCurrentImageId] = useState('lion'); 
+  const [currentPaletteId, setCurrentPaletteId] = useState('pastel');
+  
+  const activeColors = PALETTES.find(p => p.id === currentPaletteId).colors;
+
+  const [customData, setCustomData] = useState(
+    PALETTES[0].colors.map(() => ({ answer: '', questions: ['', '', ''] }))
+  );
+
+  const [gameLegend, setGameLegend] = useState([]); 
+  const [pathData, setPathData] = useState({}); 
+  const [selectedColorIndex, setSelectedColorIndex] = useState(null);
+
+  const initGame = () => {
+    const content = generateContent(currentTopic, customData, activeColors);
+    const imageDef = IMAGES[currentImageId];
+    
+    const newLegend = activeColors.map((color, index) => ({
+      colorIndex: index,
+      hex: color.hex,
+      answer: content[index]?.answer || '?'
+    }));
+
+    const newPathData = {};
+    let pathIndex = 0;
+    
+    imageDef.paths.forEach(path => {
+      const safeGroup = pathIndex % activeColors.length; 
+      const groupContent = content[safeGroup];
+      const randomQuestion = groupContent.questions[Math.floor(Math.random() * groupContent.questions.length)];
+      
+      newPathData[path.id] = {
+        question: randomQuestion,
+        answer: groupContent.answer,
+        colorIndex: safeGroup,
+        isFilled: false
+      };
+      pathIndex++;
+    });
+
+    setGameLegend(newLegend);
+    setPathData(newPathData);
+    setSelectedColorIndex(null);
+  };
+
+  useEffect(() => {
+    if (mode === 'student') {
+      initGame();
+    }
+  }, [currentTopic, currentImageId, currentPaletteId, mode]);
+
+  const handlePathClick = (pathId) => {
+    if (selectedColorIndex === null) return;
+    
+    const pData = pathData[pathId];
+    if (pData.isFilled) return;
+
+    if (pData.colorIndex === selectedColorIndex) {
+      setPathData(prev => ({
+        ...prev,
+        [pathId]: { ...prev[pathId], isFilled: true }
+      }));
+    } else {
+      const el = document.getElementById(`path-${pathId}`);
+      if(el) {
+          el.style.fill = '#cbd5e1'; 
+          setTimeout(() => el.style.fill = '#ffffff', 400); 
+      }
+    }
+  };
+
+  const isGameComplete = Object.keys(pathData).length > 0 && Object.values(pathData).every(p => p.isFilled);
+
+  // --- רכיב מורה ---
+  const TeacherPanel = () => (
+    <div className="p-6 bg-white rounded-3xl shadow-xl max-w-6xl mx-auto" dir="rtl">
+      <h2 className="text-3xl font-black mb-6 text-slate-800 border-b-4 border-slate-100 pb-4">לוח בקרה למורה / הורה</h2>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="space-y-6 bg-slate-50 p-6 rounded-2xl border-2 border-slate-200">
+          <div>
+            <label className="block text-xl font-bold mb-3 text-slate-700">בחר נושא תרגול:</label>
+            <select 
+              value={currentTopic}
+              onChange={(e) => setCurrentTopic(e.target.value)}
+              className="w-full p-4 border-2 border-slate-300 rounded-xl focus:border-blue-400 focus:ring-4 focus:ring-blue-100 outline-none transition text-xl font-bold text-slate-700 bg-white"
+            >
+              {TOPICS.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+
+          <div>
+             <label className="block text-xl font-bold mb-3 text-slate-700">בחר פלטת צבעים:</label>
+             <div className="flex flex-wrap gap-2">
+               {PALETTES.map(p => (
+                 <button
+                   key={p.id}
+                   onClick={() => setCurrentPaletteId(p.id)}
+                   className={`px-4 py-2 rounded-xl border-2 font-bold transition-all ${
+                     currentPaletteId === p.id 
+                     ? 'border-blue-500 bg-blue-50 text-blue-800 shadow-sm scale-105' 
+                     : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                   }`}
+                 >
+                   {p.name}
+                 </button>
+               ))}
+             </div>
+          </div>
+
+          <div>
+             <label className="block text-xl font-bold mb-3 text-slate-700">בחר איור התחלתי:</label>
+             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+               {Object.values(IMAGES).map(img => (
+                 <button
+                   key={img.id}
+                   onClick={() => setCurrentImageId(img.id)}
+                   className={`p-3 rounded-xl border-4 font-black text-sm flex flex-col items-center justify-center gap-2 transition ${
+                     currentImageId === img.id 
+                     ? 'border-blue-400 bg-blue-50 text-blue-800 shadow-md scale-105' 
+                     : 'border-slate-200 hover:border-slate-300 bg-white text-slate-600 hover:bg-slate-100'
+                   }`}
+                 >
+                   <ImageIcon size={24} className={currentImageId === img.id ? "text-blue-500" : "text-slate-400"} />
+                   <span className="text-center">{img.name}</span>
+                 </button>
+               ))}
+             </div>
+          </div>
+        </div>
+
+        {currentTopic === 'custom' && (
+          <div className="bg-orange-50/50 p-6 rounded-2xl border-2 border-orange-200 space-y-4 max-h-[75vh] overflow-y-auto custom-scrollbar">
+            <div className="sticky top-0 bg-orange-50/95 backdrop-blur-sm pb-4 pt-2 z-10 border-b-2 border-orange-200">
+              <h3 className="text-2xl font-black text-orange-900 mb-2">הזנת תוכן פתוח</h3>
+              <p className="text-orange-800 font-medium">הגדירו תשובות ושאלות קצרות עבור 8 קבוצות הצבע.</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              {activeColors.map((color, index) => (
+                <div key={color.id} className="bg-white p-5 rounded-xl shadow-sm border-2 border-slate-100 flex flex-col gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full shadow-sm border border-slate-200" style={{ backgroundColor: color.hex }}></div>
+                    <span className="font-black text-slate-800 text-lg">קבוצה {index + 1} ({color.name})</span>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <input 
+                        type="text" 
+                        placeholder="תשובה (למשל: 10)" 
+                        value={customData[index].answer}
+                        onChange={(e) => {
+                          const newData = [...customData];
+                          newData[index].answer = e.target.value;
+                          setCustomData(newData);
+                        }}
+                        className="w-full p-3 border-b-4 border-slate-200 focus:border-orange-400 outline-none font-black text-center bg-slate-50 rounded-t-lg text-lg"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      {customData[index].questions.map((q, qIndex) => (
+                        <input
+                          key={qIndex}
+                          type="text"
+                          placeholder={`שאלה ${qIndex+1} (למשל: 5+5)`}
+                          value={q}
+                          onChange={(e) => {
+                            const newData = [...customData];
+                            newData[index].questions[qIndex] = e.target.value;
+                            setCustomData(newData);
+                          }}
+                          className="w-full p-2 border-2 border-slate-100 rounded-lg text-base font-medium text-center outline-none focus:border-orange-300 focus:bg-orange-50"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-10 flex justify-center">
+        <button 
+          onClick={() => setMode('student')}
+          className="flex items-center gap-3 bg-slate-800 hover:bg-slate-900 text-white px-10 py-5 rounded-full text-2xl font-black shadow-xl hover:shadow-2xl transition transform hover:scale-105"
+        >
+          <Play size={28} fill="currentColor" />
+          לשחק ולצבוע!
+        </button>
+      </div>
+    </div>
+  );
+
+  // --- רכיב תלמיד (המשחק עצמו) ---
+  const StudentPanel = () => {
+    const activeImage = IMAGES[currentImageId];
+
+    return (
+      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8 items-start" dir="rtl">
+        
+        {/* אזור צד: בחירת תמונה וצבעים */}
+        <div className="w-full lg:w-1/3 flex flex-col gap-6">
+          
+          <div className="bg-white p-3 rounded-2xl shadow-sm border-2 border-slate-200 flex overflow-x-auto gap-3 scrollbar-hide">
+            {Object.values(IMAGES).map(img => (
+              <button
+                key={img.id}
+                onClick={() => setCurrentImageId(img.id)}
+                className={`flex-shrink-0 px-4 py-2 rounded-xl font-black text-base transition-all whitespace-nowrap ${
+                  currentImageId === img.id 
+                  ? 'bg-slate-700 text-white shadow-md transform scale-105' 
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                }`}
+              >
+                {img.name}
+              </button>
+            ))}
+          </div>
+
+          <div className="bg-white p-6 rounded-3xl shadow-lg border-t-8 border-t-blue-300 flex flex-col items-center">
+             <div className="flex items-center gap-3 mb-6 text-3xl font-black text-slate-800">
+               <Palette size={32} className="text-blue-400" />
+               <h2>בחר צבע ותשובה</h2>
+             </div>
+             
+             <div className="grid grid-cols-2 gap-4 w-full">
+               {gameLegend.map((item) => (
+                 <button
+                   key={item.colorIndex}
+                   onClick={() => setSelectedColorIndex(item.colorIndex)}
+                   className={`relative h-20 rounded-2xl flex flex-col items-center justify-center font-black text-2xl transition-all duration-300 transform border-4 ${
+                     selectedColorIndex === item.colorIndex 
+                     ? 'scale-105 shadow-xl z-10 border-white' 
+                     : 'hover:scale-105 shadow-sm hover:shadow-md hover:-translate-y-1 border-transparent'
+                   }`}
+                   style={{ 
+                     backgroundColor: item.hex,
+                     color: '#0f172a', 
+                     boxShadow: selectedColorIndex === item.colorIndex ? `0 0 0 4px #0f172a, 0 10px 25px -5px ${item.hex}` : undefined
+                   }}
+                 >
+                   <span style={{ fontFamily: "Arial, Tahoma, 'Segoe UI', sans-serif" }}>{item.answer}</span>
+                   {selectedColorIndex === item.colorIndex && (
+                     <div className="absolute -top-4 -right-4 bg-white text-slate-800 rounded-full p-2 shadow-lg border-2 border-slate-200 animate-bounce">
+                       <PaintBucket size={22} fill="currentColor" />
+                     </div>
+                   )}
+                 </button>
+               ))}
+             </div>
+
+             <button 
+               onClick={initGame}
+               className="mt-8 flex items-center gap-2 text-slate-400 hover:text-slate-700 font-bold text-lg transition bg-slate-50 px-6 py-2 rounded-full border-2 border-slate-200 hover:border-slate-300"
+             >
+               <Undo size={20} /> נקה ציור והתחל מחדש
+             </button>
+          </div>
+        </div>
+
+        {/* אזור מרכזי: קנבס הצביעה */}
+        <div className="w-full lg:w-2/3 bg-white p-4 md:p-8 rounded-[2.5rem] shadow-xl border-4 border-slate-200 relative overflow-hidden flex items-center justify-center min-h-[60vh]">
+          
+          {isGameComplete && (
+            <div className="absolute inset-0 bg-white/90 backdrop-blur-md z-20 flex flex-col items-center justify-center animate-in fade-in duration-700">
+              <div className="bg-yellow-100 p-8 rounded-full mb-6 shadow-xl border-4 border-yellow-300 animate-bounce">
+                <Check size={80} className="text-yellow-600" strokeWidth={3} />
+              </div>
+              <h2 className="text-6xl font-black text-slate-800 mb-4 text-center drop-shadow-sm">אלופה / אלוף!</h2>
+              <p className="text-3xl text-slate-600 mb-10 font-black">סיימת לצבוע הכל נכון.</p>
+              <button 
+                onClick={initGame}
+                className="bg-slate-800 hover:bg-slate-900 text-white px-10 py-4 rounded-full text-2xl font-black shadow-xl transition transform hover:scale-110 flex gap-3 items-center"
+              >
+                <PaintBucket size={28} />
+                לצבוע מחדש
+              </button>
+            </div>
+          )}
+
+          <div className="w-full max-w-3xl mx-auto aspect-square relative">
+            <svg 
+              viewBox={activeImage.viewBox} 
+              direction="ltr" 
+              className="w-full h-full drop-shadow-sm bg-slate-50/30 rounded-3xl border-2 border-dashed border-slate-200 relative"
+            >
+              {/* הגדרת ראש חץ לשימוש בקווים שמצביעים לאזורים קטנים */}
+              <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
+                </marker>
+              </defs>
+
+              {/* שלב 1: ציור האזורים האינטראקטיביים */}
+              {activeImage.paths.map(path => {
+                const pd = pathData[path.id];
+                if (!pd) return null;
+                
+                const isFilled = pd.isFilled;
+                const fillHex = isFilled ? activeColors[pd.colorIndex].hex : '#ffffff';
+
+                return (
+                  <path
+                    key={`path-${path.id}`}
+                    id={`path-${path.id}`}
+                    onClick={() => handlePathClick(path.id)}
+                    d={path.d}
+                    fill={fillHex}
+                    stroke="#334155" 
+                    strokeWidth="3.5" 
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    style={{ transition: 'fill 0.3s ease-in-out' }}
+                    className={`cursor-pointer ${!isFilled && selectedColorIndex !== null ? 'hover:fill-slate-50' : ''}`}
+                  />
+                );
+              })}
+
+              {/* שלב 2: ציור הקישוטים הסטטיים */}
+              {activeImage.decorations && activeImage.decorations.map((deco) => (
+                <path
+                  key={deco.id}
+                  d={deco.d}
+                  fill={deco.fill || 'none'}
+                  stroke={deco.stroke || 'none'}
+                  strokeWidth={deco.strokeWidth || '0'}
+                  strokeLinecap={deco.strokeLinecap || 'butt'}
+                  strokeLinejoin="round"
+                  opacity={deco.opacity || 1}
+                  className="pointer-events-none select-none"
+                />
+              ))}
+
+              {/* שלב 3: ציור קווי החצים (Pointers) לאזורים קטנים - נעלמים כשהאזור נצבע */}
+              {activeImage.paths.map(path => {
+                const pd = pathData[path.id];
+                if (!pd || pd.isFilled) return null;
+                if (path.pointerLine) {
+                  return (
+                    <path
+                      key={`ptr-${path.id}`}
+                      d={path.pointerLine}
+                      stroke="#64748b"
+                      strokeWidth="2.5"
+                      strokeDasharray="4 4"
+                      fill="none"
+                      markerEnd="url(#arrow)"
+                      className="pointer-events-none"
+                    />
+                  );
+                }
+                return null;
+              })}
+
+              {/* שלב 4: ציור הטקסטים - מחושב לפי המיקום המיוחד (textX/textY) או הרגיל (cx/cy) */}
+              {activeImage.paths.map(path => {
+                const pd = pathData[path.id];
+                if (!pd || pd.isFilled) return null;
+
+                const calculatedFontSize = getDynamicFontSize(pd.question, path.fontSize || 16);
+                const finalX = path.textX !== undefined ? path.textX : path.cx;
+                const finalY = path.textY !== undefined ? path.textY : path.cy;
+
+                return (
+                  <text
+                    key={`text-${path.id}`}
+                    x={finalX}
+                    y={finalY}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    style={{ 
+                      fontSize: `${calculatedFontSize}px`, 
+                      fontFamily: "Arial, Tahoma, 'Helvetica Neue', Helvetica, sans-serif",
+                      fontWeight: 900,
+                      fill: '#0f172a',
+                      pointerEvents: 'none',
+                      userSelect: 'none',
+                      unicodeBidi: 'isolate' 
+                    }}
+                  >
+                    {pd.question}
+                  </text>
+                );
+              })}
+            </svg>
+          </div>
+        </div>
+
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-100 font-sans selection:bg-blue-200 flex flex-col" dir="rtl">
+      {/* הדר (Header) */}
+      <header className="bg-white shadow-sm border-b-2 border-slate-200 px-6 py-4 mb-8 sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <div className="bg-slate-800 p-3 rounded-2xl text-white shadow-md transform -rotate-6">
+              <PaintBucket size={32} fill="currentColor" className="text-blue-300" />
+            </div>
+            <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight" style={{ fontFamily: "Arial, Tahoma, sans-serif" }}>
+              הצייר החכם שלי
+            </h1>
+          </div>
+          
+          <button
+            onClick={() => setMode(mode === 'student' ? 'teacher' : 'student')}
+            className={`flex items-center gap-3 px-6 py-3 rounded-full font-bold text-lg transition-all border-2 ${
+              mode === 'teacher' 
+              ? 'bg-blue-500 text-white border-blue-500 hover:bg-blue-600' 
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400 shadow-sm'
+            }`}
+          >
+            {mode === 'student' ? (
+              <>
+                <Settings size={22} />
+                <span className="hidden sm:inline">לוח מורה</span>
+              </>
+            ) : (
+              <>
+                <Play size={22} fill="currentColor" />
+                <span className="hidden sm:inline">חזרה למשחק</span>
+              </>
+            )}
+          </button>
+        </div>
+      </header>
+
+      {/* אזור תוכן */}
+      <main className="px-4 pb-16 flex-grow">
+        {mode === 'teacher' ? <TeacherPanel /> : <StudentPanel />}
+      </main>
+      
+      {/* פוטר - קרדיט מבוקש */}
+      <footer className="text-center py-8 text-slate-500 font-bold border-t-2 border-slate-200 bg-slate-50 mt-auto">
+        <p>יצרה בעזרת AI : מורן קמיל גלברג</p>
+      </footer>
+
+      {/* פוליפילים ל-CSS */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f8fafc; border-radius: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      `}} />
+    </div>
+  );
+}
